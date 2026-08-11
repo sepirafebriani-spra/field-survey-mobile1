@@ -5,6 +5,7 @@ import '../screens/auth/login_page.dart';
 import '../screens/auth/register_page.dart';
 import '../screens/dashboard.dart';
 import '../screens/splash/splash_screen.dart';
+import '../screens/profile/profil_page.dart';
 import 'app_routes.dart';
 
 class AppPages {
@@ -26,7 +27,11 @@ class AppPages {
       GoRoute(
         path: AppRoutes.dashboard,
         builder: (context, state) => const DashboardPage(),
-      ),
-    ],
+    //   ),
+    //  GoRoute(
+    //       path: '/profile',
+    //       builder: (context, state) => const ProfilePage(),
+        ),
+    ],  
   );
 }
