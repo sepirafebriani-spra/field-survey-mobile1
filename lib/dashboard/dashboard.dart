@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../screens/profile/edit_profile_page.dart';
 
+import '../screens/survey/survey_page.dart';
+import '../screens/riwayat/history_page.dart';
+
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
@@ -463,3 +466,4 @@ class ProfilePage extends StatelessWidget {
     );
   }
 }
+
