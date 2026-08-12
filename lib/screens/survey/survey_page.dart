@@ -1,59 +1,62 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_application_febri/data/survey_data.dart';
+import '../../models/survey_data.dart';
 
 class SurveyPage extends StatefulWidget {
-  const SurveyPage({super.key});
+  final Function(SurveyData) onSurveySaved;
+
+  const SurveyPage({
+    super.key,
+    required this.onSurveySaved,
+  });
 
   @override
   State<SurveyPage> createState() => _SurveyPageState();
 }
-
 class _SurveyPageState extends State<SurveyPage> {
   final namaController = TextEditingController();
-  final alamatController = TextEditingController();
-  final teleponController = TextEditingController();
-  final keteranganController = TextEditingController();
-
-  String? jenisKelamin;
+  final lokasiController = TextEditingController();
+  final hasilController = TextEditingController();
 
   @override
   void dispose() {
     namaController.dispose();
-    alamatController.dispose();
-    teleponController.dispose();
-    keteranganController.dispose();
+    lokasiController.dispose();
+    hasilController.dispose();
     super.dispose();
   }
 
   void simpanSurvey() {
     if (namaController.text.isEmpty ||
-        alamatController.text.isEmpty ||
-        teleponController.text.isEmpty ||
-        jenisKelamin == null ||
-        keteranganController.text.isEmpty) {
+        lokasiController.text.isEmpty ||
+        hasilController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Semua data wajib diisi!'),
-          backgroundColor: Colors.red,
+          content: Text('Semua data harus diisi'),
         ),
       );
       return;
     }
 
+    final survey = SurveyData(
+      nama: namaController.text,
+      lokasi: lokasiController.text,
+      tanggal: DateTime.now().toString().substring(0, 10),
+      hasil: hasilController.text,
+    );
+
+    widget.onSurveySaved(survey);
+
+    namaController.clear();
+    lokasiController.clear();
+    hasilController.clear();
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Survey berhasil disimpan!'),
+        content: Text('Survey berhasil disimpan'),
         backgroundColor: Colors.green,
       ),
     );
-
-    namaController.clear();
-    alamatController.clear();
-    teleponController.clear();
-    keteranganController.clear();
-
-    setState(() {
-      jenisKelamin = null;
-    });
   }
 
   @override
@@ -64,135 +67,60 @@ class _SurveyPageState extends State<SurveyPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Form Survey',
+            'Input Survey',
             style: TextStyle(
-              fontSize: 24,
+              fontSize: 22,
               fontWeight: FontWeight.bold,
             ),
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 20),
 
-          const Text(
-            'Silakan isi data survey',
-            style: TextStyle(
-              color: Colors.grey,
-            ),
-          ),
-
-          const SizedBox(height: 25),
-
-          // NAMA
           TextField(
             controller: namaController,
-            decoration: InputDecoration(
-              labelText: 'Nama',
-              hintText: 'Masukkan nama',
-              prefixIcon: const Icon(Icons.person),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+            decoration: const InputDecoration(
+              labelText: 'Nama Responden',
+              prefixIcon: Icon(Icons.person),
+              border: OutlineInputBorder(),
             ),
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 15),
 
-          // ALAMAT
           TextField(
-            controller: alamatController,
-            maxLines: 2,
-            decoration: InputDecoration(
-              labelText: 'Alamat',
-              hintText: 'Masukkan alamat',
-              prefixIcon: const Icon(Icons.location_on),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+            controller: lokasiController,
+            decoration: const InputDecoration(
+              labelText: 'Lokasi Survey',
+              prefixIcon: Icon(Icons.location_on),
+              border: OutlineInputBorder(),
             ),
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 15),
 
-          // TELEPON
           TextField(
-            controller: teleponController,
-            keyboardType: TextInputType.phone,
-            decoration: InputDecoration(
-              labelText: 'No. Telepon',
-              hintText: 'Masukkan nomor telepon',
-              prefixIcon: const Icon(Icons.phone),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // JENIS KELAMIN
-          DropdownButtonFormField<String>(
-            decoration: InputDecoration(
-              labelText: 'Jenis Kelamin',
-              prefixIcon: const Icon(Icons.people),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            items: const [
-              DropdownMenuItem(
-                value: 'Laki-laki',
-                child: Text('Laki-laki'),
-              ),
-              DropdownMenuItem(
-                value: 'Perempuan',
-                child: Text('Perempuan'),
-              ),
-            ],
-            onChanged: (value) {
-              setState(() {
-                jenisKelamin = value;
-              });
-            },
-          ),
-
-          const SizedBox(height: 16),
-
-          // KETERANGAN
-          TextField(
-            controller: keteranganController,
+            controller: hasilController,
             maxLines: 4,
-            decoration: InputDecoration(
-              labelText: 'Keterangan',
-              hintText: 'Masukkan keterangan survey',
-              prefixIcon: const Icon(Icons.description),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+            decoration: const InputDecoration(
+              labelText: 'Hasil Survey',
+              alignLabelWithHint: true,
+              prefixIcon: Icon(Icons.description),
+              border: OutlineInputBorder(),
             ),
           ),
 
-          const SizedBox(height: 25),
+          const SizedBox(height: 20),
 
-          // SIMPAN
           SizedBox(
             width: double.infinity,
-            height: 52,
+            height: 50,
             child: ElevatedButton.icon(
               onPressed: simpanSurvey,
               icon: const Icon(Icons.save),
-              label: const Text(
-                'SIMPAN SURVEY',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              label: const Text('Simpan Survey'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
               ),
             ),
           ),

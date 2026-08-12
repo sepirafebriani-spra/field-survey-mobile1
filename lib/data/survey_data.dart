@@ -1,5 +1,13 @@
-import '../models/survey_model.dart';
-
 class SurveyData {
-  static final List<SurveyModel> data = [];
+  final String nama;
+  final String lokasi;
+  final String tanggal;
+  final String hasil;
+
+  SurveyData({
+    required this.nama,
+    required this.lokasi,
+    required this.tanggal,
+    required this.hasil,
+  });
 }
