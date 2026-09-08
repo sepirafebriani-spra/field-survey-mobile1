@@ -6,4 +6,5 @@ static String register = '/register';
 static String profile = '/profile';
 static String survey = '/survey';
 static String histori= '/history';
+static const String laporan = '/laporan';
 }
