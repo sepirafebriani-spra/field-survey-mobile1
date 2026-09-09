@@ -20,16 +20,13 @@ class _ProfilePageState extends State<ProfilePage> {
   // ============================================================
   // API
   // ============================================================
-
   static const String profilUrl = 'https://sijala.biz.id/api/v1/profile';
-
   static const String updateProfilUrl =
       'https://sijala.biz.id/api/v1/profil/update';
 
   // ============================================================
   // DATA
   // ============================================================
-
   bool isLoading = true;
   bool isSaving = false;
   bool isUploadingPhoto = false;
@@ -40,13 +37,8 @@ class _ProfilePageState extends State<ProfilePage> {
   String gender = '-';
 
   String? photoname;
-
   Uint8List? profileImage;
   Uint8List? selectedPhoto;
-
-  // ============================================================
-  // INIT
-  // ============================================================
 
   @override
   void initState() {
@@ -57,22 +49,16 @@ class _ProfilePageState extends State<ProfilePage> {
   // ============================================================
   // TOKEN
   // ============================================================
-
   Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
-
-    debugPrint(
-      'TOKEN ADA: ${token != null && token.isNotEmpty}',
-    );
-
+    debugPrint('TOKEN ADA: ${token != null && token.isNotEmpty}');
     return token;
   }
 
   // ============================================================
   // GET PROFILE
   // ============================================================
-
   Future<void> getProfile() async {
     if (mounted) {
       setState(() {
@@ -84,9 +70,7 @@ class _ProfilePageState extends State<ProfilePage> {
       final token = await getToken();
 
       if (token == null || token.isEmpty) {
-        throw Exception(
-          'Token tidak ditemukan. Silakan login kembali.',
-        );
+        throw Exception('Token tidak ditemukan. Silakan login kembali.');
       }
 
       final response = await http.get(
@@ -95,15 +79,7 @@ class _ProfilePageState extends State<ProfilePage> {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
         },
-      ).timeout(
-        const Duration(seconds: 20),
-      );
-
-      debugPrint('==============================');
-      debugPrint('GET PROFILE');
-      debugPrint('STATUS: ${response.statusCode}');
-      debugPrint('BODY: ${response.body}');
-      debugPrint('==============================');
+      ).timeout(const Duration(seconds: 20));
 
       if (response.body.isEmpty) {
         throw Exception('Response server kosong.');
@@ -128,23 +104,16 @@ class _ProfilePageState extends State<ProfilePage> {
       }
 
       if (profile is! Map) {
-        throw Exception(
-          'Format data profil tidak sesuai.',
-        );
+        throw Exception('Format data profil tidak sesuai.');
       }
 
       final profileName = profile['name']?.toString() ?? '-';
-
       final profileEmail = profile['email']?.toString() ?? '-';
-
-      final profilePhone = profile['phone']?.toString() ?? '-';
-
+      final profilePhone = profile['phone']?.toString() ?? profile['no_hp']?.toString() ?? '-';
       final profileGender = profile['gender']?.toString().trim() ?? '';
-
-      final profilePhoto = profile['photo']?.toString().trim() ?? '';
+      final profilePhoto = profile['photo']?.toString().trim() ?? profile['image']?.toString().trim() ?? '';
 
       String genderResult = '-';
-
       if (profileGender.toUpperCase() == 'L') {
         genderResult = 'Laki Laki';
       } else if (profileGender.toUpperCase() == 'P') {
@@ -160,9 +129,7 @@ class _ProfilePageState extends State<ProfilePage> {
         email = profileEmail;
         phone = profilePhone;
         gender = genderResult;
-
         photoname = profilePhoto.isEmpty ? null : profilePhoto;
-
         isLoading = false;
       });
 
@@ -180,9 +147,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Gagal mengambil profil:\n$e',
-          ),
+          content: Text('Gagal mengambil profil:\n$e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -190,20 +155,16 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   // ============================================================
-  // AMBIL GAMBAR DARI API
+  // LOAD IMAGE FROM API
   // ============================================================
-
   Future<void> loadProfileImage(String fileName) async {
     try {
       final token = await getToken();
+      if (token == null || token.isEmpty) return;
 
-      if (token == null || token.isEmpty) {
-        return;
-      }
-
-      final url = 'https://sijala.biz.id/api/image/$fileName';
-
-      debugPrint('URL FOTO: $url');
+      final url = fileName.startsWith('http')
+          ? fileName
+          : 'https://sijala.biz.id/api/image/$fileName';
 
       final response = await http.get(
         Uri.parse(url),
@@ -211,26 +172,13 @@ class _ProfilePageState extends State<ProfilePage> {
           'Authorization': 'Bearer $token',
           'Accept': '*/*',
         },
-      ).timeout(
-        const Duration(seconds: 20),
-      );
-
-      debugPrint(
-        'IMAGE STATUS: ${response.statusCode}',
-      );
-
-      debugPrint(
-        'IMAGE SIZE: ${response.bodyBytes.length}',
-      );
+      ).timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
         if (!mounted) return;
-
         setState(() {
           profileImage = response.bodyBytes;
         });
-      } else {
-        debugPrint('Gagal mengambil gambar.');
       }
     } catch (e) {
       debugPrint('IMAGE ERROR: $e');
@@ -238,13 +186,10 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   // ============================================================
-  // PILIH FOTO
+  // PICK PHOTO
   // ============================================================
-
   Future<void> pickPhoto() async {
-    if (isUploadingPhoto) {
-      return;
-    }
+    if (isUploadingPhoto) return;
 
     try {
       final result = await FilePicker.platform.pickFiles(
@@ -252,16 +197,12 @@ class _ProfilePageState extends State<ProfilePage> {
         withData: true,
       );
 
-      if (result == null) {
-        return;
-      }
+      if (result == null || result.files.isEmpty) return;
 
       final file = result.files.single;
 
       if (file.bytes == null) {
-        throw Exception(
-          'File gambar tidak bisa dibaca.',
-        );
+        throw Exception('File gambar tidak bisa dibaca.');
       }
 
       if (!mounted) return;
@@ -270,22 +211,9 @@ class _ProfilePageState extends State<ProfilePage> {
         selectedPhoto = file.bytes;
       });
 
-      debugPrint(
-        'FOTO DIPILIH: ${file.name}',
-      );
-
-      debugPrint(
-        'UKURAN: ${file.bytes!.length}',
-      );
-
-      await uploadPhoto(
-        file.bytes!,
-        file.name,
-      );
+      await uploadPhoto(file.bytes!, file.name);
     } catch (e) {
-      debugPrint(
-        'PICK PHOTO ERROR: $e',
-      );
+      debugPrint('PICK PHOTO ERROR: $e');
 
       if (!mounted) return;
 
@@ -296,9 +224,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Gagal memilih foto:\n$e',
-          ),
+          content: Text('Gagal memilih foto:\n$e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -306,16 +232,10 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   // ============================================================
-  // UPLOAD FOTO
+  // UPLOAD PHOTO
   // ============================================================
-
-  Future<void> uploadPhoto(
-    Uint8List bytes,
-    String fileName,
-  ) async {
-    if (isUploadingPhoto) {
-      return;
-    }
+  Future<void> uploadPhoto(Uint8List bytes, String fileName) async {
+    if (isUploadingPhoto) return;
 
     setState(() {
       isUploadingPhoto = true;
@@ -323,11 +243,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
     try {
       final token = await getToken();
-
       if (token == null || token.isEmpty) {
-        throw Exception(
-          'Token tidak ditemukan.',
-        );
+        throw Exception('Token tidak ditemukan.');
       }
 
       final request = http.MultipartRequest(
@@ -336,23 +253,20 @@ class _ProfilePageState extends State<ProfilePage> {
       );
 
       request.headers['Accept'] = 'application/json';
-
       request.headers['Authorization'] = 'Bearer $token';
 
-      if (name != '-') {
-        request.fields['name'] = name;
-      }
+      // Mengatasi batasan HTTP Method pada backend Laravel (Spoofing Method)
+      request.fields['_method'] = 'PUT';
 
-      if (phone != '-') {
-        request.fields['phone'] = phone;
-      }
-
+      if (name != '-') request.fields['name'] = name;
+      if (phone != '-') request.fields['phone'] = phone;
       if (gender == 'Laki Laki') {
         request.fields['gender'] = 'L';
       } else if (gender == 'Perempuan') {
         request.fields['gender'] = 'P';
       }
 
+      // Mengirimkan file foto
       request.files.add(
         http.MultipartFile.fromBytes(
           'photo',
@@ -361,33 +275,12 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       );
 
-      debugPrint('==============================');
-      debugPrint('UPLOAD FOTO');
-      debugPrint('URL: $updateProfilUrl');
-      debugPrint('FILE: $fileName');
-      debugPrint('SIZE: ${bytes.length}');
-      debugPrint('==============================');
-
-      final streamedResponse = await request.send().timeout(
-            const Duration(seconds: 30),
-          );
-
-      final response = await http.Response.fromStream(
-        streamedResponse,
-      );
-
-      debugPrint(
-        'UPLOAD STATUS: ${response.statusCode}',
-      );
-
-      debugPrint(
-        'UPLOAD BODY: ${response.body}',
-      );
+      final streamedResponse =
+          await request.send().timeout(const Duration(seconds: 30));
+      final response = await http.Response.fromStream(streamedResponse);
 
       if (response.body.isEmpty) {
-        throw Exception(
-          'Response upload kosong.',
-        );
+        throw Exception('Response upload kosong.');
       }
 
       final data = jsonDecode(response.body);
@@ -408,9 +301,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Foto berhasil diperbarui',
-          ),
+          content: Text('Foto berhasil diperbarui'),
           backgroundColor: Colors.green,
         ),
       );
@@ -423,9 +314,7 @@ class _ProfilePageState extends State<ProfilePage> {
         selectedPhoto = null;
       });
     } catch (e) {
-      debugPrint(
-        'UPLOAD PHOTO ERROR: $e',
-      );
+      debugPrint('UPLOAD PHOTO ERROR: $e');
 
       if (!mounted) return;
 
@@ -435,9 +324,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Gagal upload foto:\n$e',
-          ),
+          content: Text('Gagal upload foto:\n$e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -445,17 +332,14 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   // ============================================================
-  // UPDATE PROFILE
+  // UPDATE PROFILE DATA
   // ============================================================
-
   Future<bool> updateProfile({
     required String newName,
     required String newPhone,
     required String newGender,
   }) async {
-    if (isSaving) {
-      return false;
-    }
+    if (isSaving) return false;
 
     setState(() {
       isSaving = true;
@@ -463,11 +347,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
     try {
       final token = await getToken();
-
       if (token == null || token.isEmpty) {
-        throw Exception(
-          'Token tidak ditemukan.',
-        );
+        throw Exception('Token tidak ditemukan.');
       }
 
       final request = http.MultipartRequest(
@@ -476,33 +357,21 @@ class _ProfilePageState extends State<ProfilePage> {
       );
 
       request.headers['Accept'] = 'application/json';
-
       request.headers['Authorization'] = 'Bearer $token';
+
+      // Override Method untuk Laravel API
+      request.fields['_method'] = 'PUT';
 
       request.fields['name'] = newName;
       request.fields['phone'] = newPhone;
       request.fields['gender'] = newGender;
 
-      final streamedResponse = await request.send().timeout(
-            const Duration(seconds: 20),
-          );
-
-      final response = await http.Response.fromStream(
-        streamedResponse,
-      );
-
-      debugPrint(
-        'UPDATE STATUS: ${response.statusCode}',
-      );
-
-      debugPrint(
-        'UPDATE BODY: ${response.body}',
-      );
+      final streamedResponse =
+          await request.send().timeout(const Duration(seconds: 20));
+      final response = await http.Response.fromStream(streamedResponse);
 
       if (response.body.isEmpty) {
-        throw Exception(
-          'Response server kosong.',
-        );
+        throw Exception('Response server kosong.');
       }
 
       final data = jsonDecode(response.body);
@@ -515,9 +384,7 @@ class _ProfilePageState extends State<ProfilePage> {
         );
       }
 
-      if (!mounted) {
-        return true;
-      }
+      if (!mounted) return true;
 
       setState(() {
         name = newName;
@@ -532,16 +399,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
       return true;
     } catch (e) {
-      debugPrint(
-        'UPDATE PROFILE ERROR: $e',
-      );
+      debugPrint('UPDATE PROFILE ERROR: $e');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Gagal menyimpan:\n$e',
-            ),
+            content: Text('Gagal menyimpan:\n$e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -558,20 +421,17 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   // ============================================================
-  // EDIT PROFILE
+  // EDIT PROFILE MODAL
   // ============================================================
-
   void showEditProfile() {
     final nameController = TextEditingController(
       text: name == '-' ? '' : name,
     );
-
     final phoneController = TextEditingController(
       text: phone == '-' ? '' : phone,
     );
 
     String selectedGender = '';
-
     final oldGender = gender.toLowerCase().trim();
 
     if (oldGender == 'laki laki' ||
@@ -587,16 +447,11 @@ class _ProfilePageState extends State<ProfilePage> {
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(25),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
       ),
       builder: (sheetContext) {
         return StatefulBuilder(
-          builder: (
-            context,
-            setModalState,
-          ) {
+          builder: (context, setModalState) {
             return Padding(
               padding: EdgeInsets.only(
                 left: 20,
@@ -606,26 +461,32 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               child: SingleChildScrollView(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
                     const Text(
                       'Edit Profil',
                       style: TextStyle(
-                        fontSize: 22,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 25),
+                    const SizedBox(height: 20),
                     TextField(
                       controller: nameController,
                       decoration: InputDecoration(
                         labelText: 'Nama',
-                        prefixIcon: const Icon(
-                          Icons.person_outline,
-                        ),
+                        prefixIcon: const Icon(Icons.person_outline),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                            12,
-                          ),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ),
@@ -634,14 +495,10 @@ class _ProfilePageState extends State<ProfilePage> {
                       controller: phoneController,
                       keyboardType: TextInputType.phone,
                       decoration: InputDecoration(
-                        labelText: 'Phone',
-                        prefixIcon: const Icon(
-                          Icons.phone_outlined,
-                        ),
+                        labelText: 'Nomor HP',
+                        prefixIcon: const Icon(Icons.phone_outlined),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                            12,
-                          ),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ),
@@ -650,13 +507,9 @@ class _ProfilePageState extends State<ProfilePage> {
                       value: selectedGender.isEmpty ? null : selectedGender,
                       decoration: InputDecoration(
                         labelText: 'Jenis Kelamin',
-                        prefixIcon: const Icon(
-                          Icons.wc_outlined,
-                        ),
+                        prefixIcon: const Icon(Icons.wc_outlined),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                            12,
-                          ),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       items: const [
@@ -670,48 +523,36 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                       ],
                       onChanged: (value) {
-                        if (value == null) {
-                          return;
-                        }
-
+                        if (value == null) return;
                         setModalState(() {
                           selectedGender = value;
                         });
                       },
                     ),
-                    const SizedBox(height: 25),
+                    const SizedBox(height: 20),
                     SizedBox(
                       width: double.infinity,
-                      height: 50,
+                      height: 48,
                       child: ElevatedButton(
                         onPressed: isSaving
                             ? null
                             : () async {
                                 final newName = nameController.text.trim();
-
                                 final newPhone = phoneController.text.trim();
 
                                 if (newName.isEmpty) {
-                                  ScaffoldMessenger.of(
-                                    context,
-                                  ).showSnackBar(
+                                  ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
-                                      content: Text(
-                                        'Nama tidak boleh kosong',
-                                      ),
+                                      content: Text('Nama tidak boleh kosong'),
                                     ),
                                   );
                                   return;
                                 }
 
                                 if (selectedGender.isEmpty) {
-                                  ScaffoldMessenger.of(
-                                    context,
-                                  ).showSnackBar(
+                                  ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
-                                      content: Text(
-                                        'Pilih jenis kelamin',
-                                      ),
+                                      content: Text('Pilih jenis kelamin'),
                                     ),
                                   );
                                   return;
@@ -723,34 +564,24 @@ class _ProfilePageState extends State<ProfilePage> {
                                   newGender: selectedGender,
                                 );
 
-                                if (!context.mounted) {
-                                  return;
-                                }
+                                if (!sheetContext.mounted) return;
 
                                 if (berhasil) {
-                                  Navigator.pop(
-                                    sheetContext,
-                                  );
-
-                                  ScaffoldMessenger.of(
-                                    context,
-                                  ).showSnackBar(
+                                  Navigator.pop(sheetContext);
+                                  ScaffoldMessenger.of(sheetContext)
+                                      .showSnackBar(
                                     const SnackBar(
-                                      content: Text(
-                                        'Profil berhasil diperbarui',
-                                      ),
+                                      content: Text('Profil berhasil diperbarui'),
                                       backgroundColor: Colors.green,
                                     ),
                                   );
                                 }
                               },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
+                          backgroundColor: const Color(0xFF2196F3),
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              12,
-                            ),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                         child: isSaving
@@ -763,11 +594,20 @@ class _ProfilePageState extends State<ProfilePage> {
                                 ),
                               )
                             : const Text(
-                                'Simpan',
+                                'Simpan Perubahan',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
+                                  fontSize: 16,
                                 ),
                               ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextButton(
+                      onPressed: () => Navigator.pop(sheetContext),
+                      child: const Text(
+                        'Batal',
+                        style: TextStyle(color: Colors.grey),
                       ),
                     ),
                   ],
@@ -783,27 +623,20 @@ class _ProfilePageState extends State<ProfilePage> {
   // ============================================================
   // LOGOUT
   // ============================================================
-
   Future<void> logout() async {
     final yakin = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Logout'),
-          content: const Text(
-            'Yakin ingin keluar dari akun?',
-          ),
+          content: const Text('Yakin ingin keluar dari akun?'),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context, false);
-              },
+              onPressed: () => Navigator.pop(context, false),
               child: const Text('Batal'),
             ),
             ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context, true);
-              },
+              onPressed: () => Navigator.pop(context, true),
               child: const Text('Logout'),
             ),
           ],
@@ -811,25 +644,20 @@ class _ProfilePageState extends State<ProfilePage> {
       },
     );
 
-    if (yakin != true) {
-      return;
-    }
+    if (yakin != true) return;
 
     final prefs = await SharedPreferences.getInstance();
-
     await prefs.remove('token');
     await prefs.remove('user');
 
     if (!mounted) return;
-
     context.go(AppRoutes.login);
   }
 
   // ============================================================
-  // FOTO PROFILE
+  // PROFILE PHOTO WIDGET
   // ============================================================
-
-  Widget profilePhoto() {
+  Widget profilePhotoWidget() {
     if (selectedPhoto != null) {
       return CircleAvatar(
         radius: 55,
@@ -858,7 +686,6 @@ class _ProfilePageState extends State<ProfilePage> {
   // ============================================================
   // BUILD
   // ============================================================
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -866,12 +693,10 @@ class _ProfilePageState extends State<ProfilePage> {
       appBar: AppBar(
         title: const Text(
           'Profil',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        backgroundColor: Colors.blue,
+        backgroundColor: const Color(0xFF1E6091),
         foregroundColor: Colors.white,
         actions: [
           IconButton(
@@ -881,9 +706,7 @@ class _ProfilePageState extends State<ProfilePage> {
         ],
       ),
       body: isLoading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
+          ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: getProfile,
               child: SingleChildScrollView(
@@ -891,10 +714,10 @@ class _ProfilePageState extends State<ProfilePage> {
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    const SizedBox(height: 25),
+                    const SizedBox(height: 20),
                     Stack(
                       children: [
-                        profilePhoto(),
+                        profilePhotoWidget(),
                         Positioned(
                           right: 0,
                           bottom: 0,
@@ -929,63 +752,39 @@ class _ProfilePageState extends State<ProfilePage> {
                     Text(
                       name,
                       style: const TextStyle(
-                        fontSize: 23,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 5),
                     Text(
                       email,
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                      ),
+                      style: TextStyle(color: Colors.grey.shade600),
                     ),
-                    const SizedBox(height: 30),
-                    _profileCard(
-                      Icons.person_outline,
-                      'Nama',
-                      name,
-                    ),
+                    const SizedBox(height: 25),
+                    _profileCard(Icons.person_outline, 'Nama', name),
                     const SizedBox(height: 12),
-                    _profileCard(
-                      Icons.email_outlined,
-                      'Email',
-                      email,
-                    ),
+                    _profileCard(Icons.email_outlined, 'Email', email),
                     const SizedBox(height: 12),
-                    _profileCard(
-                      Icons.phone_outlined,
-                      'Phone',
-                      phone,
-                    ),
+                    _profileCard(Icons.phone_outlined, 'Nomor HP', phone),
                     const SizedBox(height: 12),
-                    _profileCard(
-                      Icons.wc_outlined,
-                      'Jenis Kelamin',
-                      gender,
-                    ),
+                    _profileCard(Icons.wc_outlined, 'Jenis Kelamin', gender),
                     const SizedBox(height: 25),
                     SizedBox(
                       width: double.infinity,
-                      height: 50,
+                      height: 48,
                       child: ElevatedButton.icon(
                         onPressed: showEditProfile,
-                        icon: const Icon(
-                          Icons.edit,
-                        ),
+                        icon: const Icon(Icons.edit),
                         label: const Text(
                           'Edit Profil',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              12,
-                            ),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                       ),
@@ -993,16 +792,19 @@ class _ProfilePageState extends State<ProfilePage> {
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
-                      height: 50,
+                      height: 48,
                       child: OutlinedButton.icon(
                         onPressed: logout,
-                        icon: const Icon(
-                          Icons.logout,
-                        ),
+                        icon: const Icon(Icons.logout),
                         label: const Text(
                           'Logout',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                       ),
@@ -1017,38 +819,30 @@ class _ProfilePageState extends State<ProfilePage> {
   // ============================================================
   // PROFILE CARD
   // ============================================================
-
-  Widget _profileCard(
-    IconData icon,
-    String title,
-    String value,
-  ) {
+  Widget _profileCard(IconData icon, String title, String value) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(11),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: Colors.blue.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(
-              icon,
-              color: Colors.blue,
-            ),
+            child: Icon(icon, color: Colors.blue),
           ),
           const SizedBox(width: 15),
           Expanded(
@@ -1057,16 +851,13 @@ class _ProfilePageState extends State<ProfilePage> {
               children: [
                 Text(
                   title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   value,
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF1E293B),
                   ),
