@@ -6,10 +6,8 @@ import 'package:go_router/go_router.dart';
 
 import '../screens/auth/login_page.dart';
 import '../screens/auth/register_page.dart';
-// import '../screens/dashboard/dashboard.dart';
 import '../screens/splash/splash_screen.dart';
 import '../screens/profile/profil_page.dart';
-// import '../screens/survey/survey_page.dart';
 import 'app_routes.dart';
 
 class AppPages {
@@ -33,30 +31,30 @@ class AppPages {
         builder: (context, state) => const DashboardPage(),
       ),
       GoRoute(
-        path: AppRoutes.profile, // gunakan AppRoutes biar konsisten
+        path: AppRoutes.profile,
         builder: (context, state) => const ProfilePage(),
       ),
-      // GoRoute(
-      //   path: AppRoutes.survey,
-      //   builder: (context, state) => const SurveyPage(),
-      // ),
-      GoRoute(
-          path: AppRoutes.laporan,
-          builder: (context, state) => const LaporanPage(),
-        ),
+      
+      // 2. Tambahkan GoRoute untuk Edit Profile
+     
 
       GoRoute(
-          path: AppRoutes.survey,
-          builder: (context, state) => const SurveyPage(),
-        ),
+        path: AppRoutes.laporan,
+        builder: (context, state) => const LaporanPage(),
+      ),
 
       GoRoute(
-          path: '/survey-detail/:id', // Path unik dengan parameter ID
+        path: AppRoutes.survey,
+        builder: (context, state) => const SurveyPage(),
+      ),
+
+      GoRoute(
+        path: '/survey-detail/:id',
         builder: (context, state) {
           final id = int.tryParse(state.pathParameters['id'] ?? '0') ?? 0;
           return SurveyDetailPage(surveyId: id);
         },
-        ),
-    ],  
+      ),
+    ],
   );
 }

@@ -1,13 +1,10 @@
 import 'dart:convert';
 import 'dart:typed_data';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_application_febri/routes/app_routes.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-
-import '../../routes/app_routes.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -17,28 +14,15 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  // ============================================================
-  // API
-  // ============================================================
-  static const String profilUrl = 'https://sijala.biz.id/api/v1/profile';
-  static const String updateProfilUrl =
-      'https://sijala.biz.id/api/v1/profil/update';
+  // API ENDPOINTS
+  static const String baseUrl = 'https://sijala.biz.id/api/v1';
+  static const String profileEndpoint = '$baseUrl/profile';
+  static const String imageEndpoint = 'https://sijala.biz.id/api/image';
 
-  // ============================================================
-  // DATA
-  // ============================================================
+  // STATE
+  Map<String, dynamic>? profile;
+  Future<Uint8List?>? profileImageFuture;
   bool isLoading = true;
-  bool isSaving = false;
-  bool isUploadingPhoto = false;
-
-  String name = '-';
-  String email = '-';
-  String phone = '-';
-  String gender = '-';
-
-  String? photoname;
-  Uint8List? profileImage;
-  Uint8List? selectedPhoto;
 
   @override
   void initState() {
@@ -46,826 +30,369 @@ class _ProfilePageState extends State<ProfilePage> {
     getProfile();
   }
 
-  // ============================================================
-  // TOKEN
-  // ============================================================
-  Future<String?> getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-    debugPrint('TOKEN ADA: ${token != null && token.isNotEmpty}');
-    return token;
-  }
-
-  // ============================================================
   // GET PROFILE
-  // ============================================================
   Future<void> getProfile() async {
-    if (mounted) {
+    try {
       setState(() {
         isLoading = true;
       });
-    }
 
-    try {
-      final token = await getToken();
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
 
       if (token == null || token.isEmpty) {
         throw Exception('Token tidak ditemukan. Silakan login kembali.');
       }
 
       final response = await http.get(
-        Uri.parse(profilUrl),
+        Uri.parse(profileEndpoint),
         headers: {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
         },
-      ).timeout(const Duration(seconds: 20));
-
-      if (response.body.isEmpty) {
-        throw Exception('Response server kosong.');
-      }
+      );
 
       final data = jsonDecode(response.body);
 
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception(
-          data is Map && data['message'] != null
-              ? data['message'].toString()
-              : 'Gagal mengambil profil',
-        );
-      }
+      if (response.statusCode == 200 && data['status'] == true) {
+        final profileData = Map<String, dynamic>.from(data['data']);
+        final photo = profileData['photo']?.toString();
+        debugPrint('PROFILE PHOTO: $photo');
 
-      dynamic profile;
-
-      if (data is Map && data['data'] is Map) {
-        profile = data['data'];
+        setState(() {
+          profile = profileData;
+          if (photo != null && photo.isNotEmpty) {
+            profileImageFuture = fetchProfileImage(photo);
+          } else {
+            profileImageFuture = null;
+          }
+          isLoading = false;
+        });
       } else {
-        profile = data;
-      }
-
-      if (profile is! Map) {
-        throw Exception('Format data profil tidak sesuai.');
-      }
-
-      final profileName = profile['name']?.toString() ?? '-';
-      final profileEmail = profile['email']?.toString() ?? '-';
-      final profilePhone = profile['phone']?.toString() ?? profile['no_hp']?.toString() ?? '-';
-      final profileGender = profile['gender']?.toString().trim() ?? '';
-      final profilePhoto = profile['photo']?.toString().trim() ?? profile['image']?.toString().trim() ?? '';
-
-      String genderResult = '-';
-      if (profileGender.toUpperCase() == 'L') {
-        genderResult = 'Laki Laki';
-      } else if (profileGender.toUpperCase() == 'P') {
-        genderResult = 'Perempuan';
-      } else if (profileGender.isNotEmpty) {
-        genderResult = profileGender;
-      }
-
-      if (!mounted) return;
-
-      setState(() {
-        name = profileName;
-        email = profileEmail;
-        phone = profilePhone;
-        gender = genderResult;
-        photoname = profilePhoto.isEmpty ? null : profilePhoto;
-        isLoading = false;
-      });
-
-      if (profilePhoto.isNotEmpty) {
-        await loadProfileImage(profilePhoto);
+        throw Exception(data['message'] ?? 'Gagal mengambil data profile.');
       }
     } catch (e) {
-      debugPrint('GET PROFILE ERROR: $e');
-
-      if (!mounted) return;
-
       setState(() {
         isLoading = false;
       });
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Gagal mengambil profil:\n$e'),
+          content: Text(e.toString().replaceAll('Exception: ', '')),
           backgroundColor: Colors.red,
         ),
       );
     }
   }
 
-  // ============================================================
-  // LOAD IMAGE FROM API
-  // ============================================================
-  Future<void> loadProfileImage(String fileName) async {
+  // GET PROFILE IMAGE
+  Future<Uint8List?> fetchProfileImage(String fileName) async {
     try {
-      final token = await getToken();
-      if (token == null || token.isEmpty) return;
-
-      final url = fileName.startsWith('http')
-          ? fileName
-          : 'https://sijala.biz.id/api/image/$fileName';
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
 
       final response = await http.get(
-        Uri.parse(url),
+        Uri.parse('$imageEndpoint/$fileName'),
         headers: {
           'Authorization': 'Bearer $token',
-          'Accept': '*/*',
+          'Accept': 'application/json',
         },
-      ).timeout(const Duration(seconds: 20));
+      );
+
+      debugPrint('IMAGE URL: ${response.request?.url}');
+      debugPrint('IMAGE STATUS: ${response.statusCode}');
+      debugPrint('IMAGE CONTENT TYPE: ${response.headers['content-type']}');
+      debugPrint('IMAGE SIZE: ${response.bodyBytes.length}');
 
       if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
-        if (!mounted) return;
-        setState(() {
-          profileImage = response.bodyBytes;
-        });
+        return response.bodyBytes;
       }
+      return null;
     } catch (e) {
       debugPrint('IMAGE ERROR: $e');
+      return null;
     }
   }
 
-  // ============================================================
-  // PICK PHOTO
-  // ============================================================
-  Future<void> pickPhoto() async {
-    if (isUploadingPhoto) return;
-
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        withData: true,
-      );
-
-      if (result == null || result.files.isEmpty) return;
-
-      final file = result.files.single;
-
-      if (file.bytes == null) {
-        throw Exception('File gambar tidak bisa dibaca.');
-      }
-
-      if (!mounted) return;
-
-      setState(() {
-        selectedPhoto = file.bytes;
-      });
-
-      await uploadPhoto(file.bytes!, file.name);
-    } catch (e) {
-      debugPrint('PICK PHOTO ERROR: $e');
-
-      if (!mounted) return;
-
-      setState(() {
-        selectedPhoto = null;
-        isUploadingPhoto = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal memilih foto:\n$e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  // ============================================================
-  // UPLOAD PHOTO
-  // ============================================================
-  Future<void> uploadPhoto(Uint8List bytes, String fileName) async {
-    if (isUploadingPhoto) return;
-
-    setState(() {
-      isUploadingPhoto = true;
-    });
-
-    try {
-      final token = await getToken();
-      if (token == null || token.isEmpty) {
-        throw Exception('Token tidak ditemukan.');
-      }
-
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse(updateProfilUrl),
-      );
-
-      request.headers['Accept'] = 'application/json';
-      request.headers['Authorization'] = 'Bearer $token';
-
-      // Mengatasi batasan HTTP Method pada backend Laravel (Spoofing Method)
-      request.fields['_method'] = 'PUT';
-
-      if (name != '-') request.fields['name'] = name;
-      if (phone != '-') request.fields['phone'] = phone;
-      if (gender == 'Laki Laki') {
-        request.fields['gender'] = 'L';
-      } else if (gender == 'Perempuan') {
-        request.fields['gender'] = 'P';
-      }
-
-      // Mengirimkan file foto
-      request.files.add(
-        http.MultipartFile.fromBytes(
-          'photo',
-          bytes,
-          filename: fileName,
-        ),
-      );
-
-      final streamedResponse =
-          await request.send().timeout(const Duration(seconds: 30));
-      final response = await http.Response.fromStream(streamedResponse);
-
-      if (response.body.isEmpty) {
-        throw Exception('Response upload kosong.');
-      }
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception(
-          data is Map && data['message'] != null
-              ? data['message'].toString()
-              : 'Gagal mengupload foto',
-        );
-      }
-
-      if (!mounted) return;
-
-      setState(() {
-        isUploadingPhoto = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Foto berhasil diperbarui'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      await getProfile();
-
-      if (!mounted) return;
-
-      setState(() {
-        selectedPhoto = null;
-      });
-    } catch (e) {
-      debugPrint('UPLOAD PHOTO ERROR: $e');
-
-      if (!mounted) return;
-
-      setState(() {
-        isUploadingPhoto = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal upload foto:\n$e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  // ============================================================
-  // UPDATE PROFILE DATA
-  // ============================================================
-  Future<bool> updateProfile({
-    required String newName,
-    required String newPhone,
-    required String newGender,
-  }) async {
-    if (isSaving) return false;
-
-    setState(() {
-      isSaving = true;
-    });
-
-    try {
-      final token = await getToken();
-      if (token == null || token.isEmpty) {
-        throw Exception('Token tidak ditemukan.');
-      }
-
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse(updateProfilUrl),
-      );
-
-      request.headers['Accept'] = 'application/json';
-      request.headers['Authorization'] = 'Bearer $token';
-
-      // Override Method untuk Laravel API
-      request.fields['_method'] = 'PUT';
-
-      request.fields['name'] = newName;
-      request.fields['phone'] = newPhone;
-      request.fields['gender'] = newGender;
-
-      final streamedResponse =
-          await request.send().timeout(const Duration(seconds: 20));
-      final response = await http.Response.fromStream(streamedResponse);
-
-      if (response.body.isEmpty) {
-        throw Exception('Response server kosong.');
-      }
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception(
-          data is Map && data['message'] != null
-              ? data['message'].toString()
-              : 'Gagal menyimpan profil',
-        );
-      }
-
-      if (!mounted) return true;
-
-      setState(() {
-        name = newName;
-        phone = newPhone;
-
-        if (newGender == 'L') {
-          gender = 'Laki Laki';
-        } else if (newGender == 'P') {
-          gender = 'Perempuan';
-        }
-      });
-
-      return true;
-    } catch (e) {
-      debugPrint('UPDATE PROFILE ERROR: $e');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal menyimpan:\n$e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-
-      return false;
-    } finally {
-      if (mounted) {
-        setState(() {
-          isSaving = false;
-        });
-      }
-    }
-  }
-
-  // ============================================================
-  // EDIT PROFILE MODAL
-  // ============================================================
-  void showEditProfile() {
-    final nameController = TextEditingController(
-      text: name == '-' ? '' : name,
-    );
-    final phoneController = TextEditingController(
-      text: phone == '-' ? '' : phone,
-    );
-
-    String selectedGender = '';
-    final oldGender = gender.toLowerCase().trim();
-
-    if (oldGender == 'laki laki' ||
-        oldGender == 'laki-laki' ||
-        oldGender == 'l') {
-      selectedGender = 'L';
-    } else if (oldGender == 'perempuan' || oldGender == 'p') {
-      selectedGender = 'P';
-    }
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 25,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 25,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    const Text(
-                      'Edit Profil',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    TextField(
-                      controller: nameController,
-                      decoration: InputDecoration(
-                        labelText: 'Nama',
-                        prefixIcon: const Icon(Icons.person_outline),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    TextField(
-                      controller: phoneController,
-                      keyboardType: TextInputType.phone,
-                      decoration: InputDecoration(
-                        labelText: 'Nomor HP',
-                        prefixIcon: const Icon(Icons.phone_outlined),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    DropdownButtonFormField<String>(
-                      value: selectedGender.isEmpty ? null : selectedGender,
-                      decoration: InputDecoration(
-                        labelText: 'Jenis Kelamin',
-                        prefixIcon: const Icon(Icons.wc_outlined),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'L',
-                          child: Text('Laki Laki'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'P',
-                          child: Text('Perempuan'),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        if (value == null) return;
-                        setModalState(() {
-                          selectedGender = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: isSaving
-                            ? null
-                            : () async {
-                                final newName = nameController.text.trim();
-                                final newPhone = phoneController.text.trim();
-
-                                if (newName.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Nama tidak boleh kosong'),
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                if (selectedGender.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Pilih jenis kelamin'),
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                final berhasil = await updateProfile(
-                                  newName: newName,
-                                  newPhone: newPhone,
-                                  newGender: selectedGender,
-                                );
-
-                                if (!sheetContext.mounted) return;
-
-                                if (berhasil) {
-                                  Navigator.pop(sheetContext);
-                                  ScaffoldMessenger.of(sheetContext)
-                                      .showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Profil berhasil diperbarui'),
-                                      backgroundColor: Colors.green,
-                                    ),
-                                  );
-                                }
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2196F3),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: isSaving
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text(
-                                'Simpan Perubahan',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextButton(
-                      onPressed: () => Navigator.pop(sheetContext),
-                      child: const Text(
-                        'Batal',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // ============================================================
   // LOGOUT
-  // ============================================================
   Future<void> logout() async {
-    final yakin = await showDialog<bool>(
+    final result = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Logout'),
-          content: const Text('Yakin ingin keluar dari akun?'),
+          title: const Text('Konfirmasi Logout'),
+          content: const Text('Apakah Anda yakin ingin keluar dari akun?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Batal'),
             ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Logout'),
+              child: const Text(
+                'Keluar',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         );
       },
     );
 
-    if (yakin != true) return;
+    if (result != true) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
-    await prefs.remove('user');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
 
-    if (!mounted) return;
-    context.go(AppRoutes.login);
+      if (token == null || token.isEmpty) {
+        await prefs.remove('token');
+        await prefs.remove('user');
+        if (!mounted) return;
+        context.go(AppRoutes.login);
+        return;
+      }
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/logout'),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 401) {
+        await prefs.remove('token');
+        await prefs.remove('user');
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Logout berhasil'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        context.go(AppRoutes.login);
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Logout gagal. Silakan coba lagi.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tidak dapat terhubung ke server.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
-  // ============================================================
-  // PROFILE PHOTO WIDGET
-  // ============================================================
-  Widget profilePhotoWidget() {
-    if (selectedPhoto != null) {
-      return CircleAvatar(
-        radius: 55,
-        backgroundImage: MemoryImage(selectedPhoto!),
-      );
-    }
+  // REFRESH
+  Future<void> handleRefresh() async {
+    await getProfile();
+  }
 
-    if (profileImage != null) {
-      return CircleAvatar(
-        radius: 55,
-        backgroundImage: MemoryImage(profileImage!),
-      );
-    }
-
-    return const CircleAvatar(
-      radius: 55,
-      backgroundColor: Color(0xFFE8F0FE),
-      child: Icon(
-        Icons.person,
-        size: 65,
-        color: Colors.blue,
+  // INFO ROW
+  Widget infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 3,
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+          ),
+          Expanded(
+            flex: 5,
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  // ============================================================
+  // PROFILE CARD
+  Widget profileCard() {
+    if (profile == null) {
+      return const Center(child: Text('Data profile tidak ditemukan.'));
+    }
+
+    final name = profile!['name']?.toString() ?? '';
+    final username = profile!['username']?.toString() ?? '-';
+    final photo = profile!['photo']?.toString();
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: cardDecoration(),
+      child: Column(
+        children: [
+          // FOTO PROFIL
+          CircleAvatar(
+            radius: 42,
+            backgroundColor: Colors.blue.shade50,
+            child: photo != null && photo.isNotEmpty
+                ? FutureBuilder<Uint8List?>(
+                    future: profileImageFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        );
+                      }
+                      if (snapshot.hasData && snapshot.data != null) {
+                        return ClipOval(
+                          child: Image.memory(
+                            snapshot.data!,
+                            width: 84,
+                            height: 84,
+                            fit: BoxFit.cover,
+                          ),
+                        );
+                      }
+                      return const Icon(
+                        Icons.person,
+                        size: 45,
+                        color: Colors.blue,
+                      );
+                    },
+                  )
+                : const Icon(Icons.person, size: 45, color: Colors.blue),
+          ),
+          const SizedBox(height: 14),
+
+          // NAMA & USERNAME
+          Text(
+            name,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          Text('@$username', style: const TextStyle(color: Colors.grey)),
+          const Divider(height: 30),
+
+          // INFORMASI PROFILE
+          infoRow('Username', username),
+          infoRow('Email', profile!['email']?.toString() ?? '-'),
+          infoRow('Nomor HP', profile!['phone']?.toString() ?? '-'),
+          infoRow('Jenis Kelamin', profile!['gender']?.toString() ?? '-'),
+          infoRow('Tempat Lahir', profile!['birth_place']?.toString() ?? '-'),
+          infoRow('Tanggal Lahir', profile!['birth_date']?.toString() ?? '-'),
+        ],
+      ),
+    );
+  }
+
+  // ACTION CARD
+  Widget actionCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    bool isLogout = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: cardDecoration(),
+      child: ListTile(
+        leading: Icon(icon, color: isLogout ? Colors.red : Colors.blue),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: isLogout ? Colors.red : Colors.black87,
+          ),
+        ),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  // CARD DECORATION
+  static BoxDecoration cardDecoration() {
+    return BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.05),
+          blurRadius: 8,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    );
+  }
+
   // BUILD
-  // ============================================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
-      appBar: AppBar(
-        title: const Text(
-          'Profil',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-        backgroundColor: const Color(0xFF1E6091),
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            onPressed: showEditProfile,
-            icon: const Icon(Icons.edit),
-          ),
-        ],
-      ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: getProfile,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 20),
-                    Stack(
-                      children: [
-                        profilePhotoWidget(),
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: GestureDetector(
-                            onTap: isUploadingPhoto ? null : pickPhoto,
-                            child: Container(
-                              width: 36,
-                              height: 36,
-                              decoration: const BoxDecoration(
-                                color: Colors.blue,
-                                shape: BoxShape.circle,
-                              ),
-                              child: isUploadingPhoto
-                                  ? const Padding(
-                                      padding: EdgeInsets.all(9),
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.camera_alt,
-                                      color: Colors.white,
-                                      size: 20,
-                                    ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 15),
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      email,
-                      style: TextStyle(color: Colors.grey.shade600),
-                    ),
-                    const SizedBox(height: 25),
-                    _profileCard(Icons.person_outline, 'Nama', name),
-                    const SizedBox(height: 12),
-                    _profileCard(Icons.email_outlined, 'Email', email),
-                    const SizedBox(height: 12),
-                    _profileCard(Icons.phone_outlined, 'Nomor HP', phone),
-                    const SizedBox(height: 12),
-                    _profileCard(Icons.wc_outlined, 'Jenis Kelamin', gender),
-                    const SizedBox(height: 25),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton.icon(
-                        onPressed: showEditProfile,
-                        icon: const Icon(Icons.edit),
-                        label: const Text(
-                          'Edit Profil',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: OutlinedButton.icon(
-                        onPressed: logout,
-                        icon: const Icon(Icons.logout),
-                        label: const Text(
-                          'Logout',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red,
-                          side: const BorderSide(color: Colors.red),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-    );
-  }
-
-  // ============================================================
-  // PROFILE CARD
-  // ============================================================
-  Widget _profileCard(IconData icon, String title, String value) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: Colors.blue),
-          ),
-          const SizedBox(width: 15),
-          Expanded(
+      backgroundColor: const Color(0xFFF5F7FA),
+      appBar: AppBar(title: const Text('Profile')),
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: handleRefresh,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                if (isLoading)
+                  const Padding(
+                    padding: EdgeInsets.all(40),
+                    child: CircularProgressIndicator(),
+                  )
+                else
+                  profileCard(),
+                const SizedBox(height: 16),
+
+                // EDIT PROFILE
+                actionCard(
+                  icon: Icons.edit,
+                  title: 'Edit Profil',
+                  subtitle: 'Perbarui data diri',
+                  onTap: () async {
+                    final result = await context.push(
+                      AppRoutes.editProfile,
+                      extra: profile,
+                    );
+                    if (result == true) {
+                      getProfile();
+                    }
+                  },
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1E293B),
-                  ),
+
+                // LOGOUT
+                actionCard(
+                  icon: Icons.logout,
+                  title: 'Keluar',
+                  subtitle: 'Logout dari akun',
+                  isLogout: true,
+                  onTap: logout,
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

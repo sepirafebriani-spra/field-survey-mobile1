@@ -7,5 +7,5 @@ static String profile = '/profile';
 static String survey = '/survey';
 static String histori= '/history';
 static String laporan = '/laporan';
-
+static String editProfile= '/editProfile';
 }
